@@ -1884,34 +1884,38 @@ KeyID
 XWindowsScreen::mapKeyFromX(XKeyEvent* event) const
 {
 	// convert to a keysym
-	KeySym keysym;
+	KeySym keysym = 0;
 	if (event->type == KeyPress && m_ic != NULL) {
-		// do multibyte lookup.  can only call XmbLookupString with a
-		// key press event and a valid XIC so we checked those above.
-		char scratch[32];
-		int n        = sizeof(scratch) / sizeof(scratch[0]);
-		char* buffer = scratch;
-		int status;
-		n = XmbLookupString(m_ic, event, buffer, n, &keysym, &status);
-		if (status == XBufferOverflow) {
-			// not enough space.  grow buffer and try again.
-			buffer = new char[n];
+		if (event->state == 0x80) {
+			// AltGR is pressed
+			keysym = XkbKeycodeToKeysym(m_display, event->keycode, 0, 0);
+		} else {
+			// do multibyte lookup.  can only call XmbLookupString with a
+			// key press event and a valid XIC so we checked those above.
+			char scratch[32];
+			int n = sizeof(scratch) / sizeof(scratch[0]);
+			char *buffer = scratch;
+			int status;
 			n = XmbLookupString(m_ic, event, buffer, n, &keysym, &status);
-			delete[] buffer;
-		}
+			if (status == XBufferOverflow) {
+				// not enough space.  grow buffer and try again.
+				buffer = new char[n];
+				n = XmbLookupString(m_ic, event, buffer, n, &keysym, &status);
+				delete[] buffer;
+			}
+			// see what we got.  since we don't care about the string
+			// we'll just look for a keysym.
+			switch (status) {
+				default:
+				case XLookupNone:
+				case XLookupChars:
+					keysym = 0;
+					break;
 
-		// see what we got.  since we don't care about the string
-		// we'll just look for a keysym.
-		switch (status) {
-		default:
-		case XLookupNone:
-		case XLookupChars:
-			keysym = 0;
-			break;
-
-		case XLookupKeySym:
-		case XLookupBoth:
-			break;
+				case XLookupKeySym:
+				case XLookupBoth:
+					break;
+			}
 		}
 	}
 	else {
